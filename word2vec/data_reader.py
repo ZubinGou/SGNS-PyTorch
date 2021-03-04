@@ -55,7 +55,7 @@ class DataReader:
         self.discards = np.sqrt(t / f) + (t / f)
 
     def init_table_negatives(self):
-        pow_frequency = np.array(list(self.word_frequency.values())) ** 0.75  # 0.5 ?
+        pow_frequency = np.array(list(self.word_frequency.values())) ** 0.75  # 0.5(from fasttext) or 0.75 not matter too much.
         words_pow = sum(pow_frequency)
         ratio = pow_frequency / words_pow
         count = np.round(ratio * DataReader.NEGTIVE_TABLE_SIZE)

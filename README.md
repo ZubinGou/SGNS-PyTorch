@@ -40,6 +40,14 @@ $$
 P_n(w_i)=f(w_i)^{3 / 4} / Z
 $$
 
+## 评估
+1. 基于词向量的语言学特性
+    - similarity task 词相似
+    - analogy task 词类比 (A-B=C-D)
+2. Task-specific
+    - 对具体任务的性能提升
+
+这里我们基于词相似，在 `WordSim-353` and `SimLex-999`上进行评估
 
 ## Reference
 - https://github.com/theeluwin/pytorch-sgns
