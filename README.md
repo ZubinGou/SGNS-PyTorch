@@ -49,10 +49,16 @@ $$
 
 这里我们基于词相似，在 `WordSim-353` and `SimLex-999`上进行评估
 
+语料：[One Billion Words Benchmark for Language Modeling](https://opensource.google/projects/lm-benchmark)
+
+
 ## Reference
 - https://github.com/theeluwin/pytorch-sgns
 - https://github.com/fanglanting/skip-gram-pytorch
 - https://github.com/Andras7/word2vec-pytorch
 - https://www.kaggle.com/karthur10/skip-gram-implementation-with-pytorch-step-by-step
 
-
+## TODO
+- One Billion Word Benchmark
+- Train and test
+- <unk>

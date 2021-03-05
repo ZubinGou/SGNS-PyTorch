@@ -37,7 +37,7 @@ def find_nearest(word, embedding_weights):
     return [id2word[i] for i in cos_dis.argsort()[:10]]
 
 if __name__ == "__main__":
-    w2v = Word2VecTrainer(input_file="input.txt", output_file="out.vec")
+    w2v = Word2VecTrainer(input_file="dataset/news-commentary-v6.en", output_file="out.vec")
     w2v.train()
 
     word2id = w2v.data.word2id
