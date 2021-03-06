@@ -104,10 +104,10 @@ class Word2vecDataset(Dataset):
                         self.data.word2id[w]
                         for w in words
                         if w in self.data.word2id
-                        and np.random.rand() < self.data.discards[self.data.word2id[w]]
+                        and np.random.rand() < self.data.discard[self.data.word2id[w]]
                     ]
                     boundary = np.random.randint(
-                        1, self.window_size
+                        1, self.window_size + 1
                     )  # ? window_size + 1
                     return [
                         (u, v, self.data.get_negatives(v, 5))
