@@ -5,6 +5,7 @@ __pycache__/
 
 # data
 dataset/
+out.vec
 
 # C extensions
 *.so

@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.core.fromnumeric import reshape
 import torch
-from torch.utils.data import dataset
+from torch.utils.data import Dataset 
 
 np.random.seed(114514)
 
@@ -104,7 +104,7 @@ class Word2vecDataset(Dataset):
                         self.data.word2id[w]
                         for w in words
                         if w in self.data.word2id
-                        and np.random.rand() < self.data.discard[self.data.word2id[w]]
+                        and np.random.rand() < self.data.discards[self.data.word2id[w]]
                     ]
                     boundary = np.random.randint(
                         1, self.window_size

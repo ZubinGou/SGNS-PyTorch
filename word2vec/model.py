@@ -7,7 +7,7 @@ from torch.nn import init
 class SkipGramModel(nn.Module):
 
     def __init__(self, emb_size, emb_dimension):
-        super(SkipGramModel).__init__()
+        super(SkipGramModel, self).__init__()
         self.emb_size = emb_size # v
         self.emb_dimension = emb_dimension # N
         self.u_embeddings = nn.Embedding(emb_size, emb_dimension, sparse=True) # (V, N)
@@ -34,8 +34,8 @@ class SkipGramModel(nn.Module):
 
     def save_embedding(self, id2word, file_name):
         embedding = self.u_embeddings.weight.cpu().data.numpy()
-        with open(file_name, 'w') as f:
-            f.write(f"{len(id2word)} {self.emb_dimension}")
+        with open(file_name, 'w', encoding='utf-8') as f:
+            f.write(f"{len(id2word)} {self.emb_dimension}\n")
             for wid, w in id2word.items():
                 e = ' '.join(map(lambda x: str(x), embedding[wid]))
                 f.write(f"{w} {e}\n")
