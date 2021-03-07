@@ -6,6 +6,9 @@ __pycache__/
 # data
 dataset/
 out.vec
+tmp/
+
+.vscode
 
 # C extensions
 *.so
