@@ -4,13 +4,14 @@ from torch.autograd import Variable
 import torch.optim as optim
 import time
 
-from skip_gram_pytorch.inputdata import Options, scorefunction
+from skip_gram_pytorch.inputdata import DataReader
+from skip_gram_pytorch.utils import scorefunction
 from skip_gram_pytorch.model import skipgram
 
 
 class word2vec:
-    def __init__(self, inputfile, vocabulary_size=100000, embedding_dim=100, epoch_num=10, batch_size=32, windows_size=5, neg_sample_num=10):
-        self.data = Options(inputfile, vocabulary_size)
+    def __init__(self, inputfile, vocabulary_size=30000, embedding_dim=100, epoch_num=10, batch_size=32, windows_size=5, neg_sample_num=10):
+        self.data = DataReader(inputfile, vocabulary_size)
         self.embedding_dim = embedding_dim
         self.windows_size = windows_size
         self.vocabulary_size = vocabulary_size
@@ -43,7 +44,7 @@ class word2vec:
                 neg_v = Variable(torch.LongTensor(neg_v)).to(self.device)
 
                 optimizer.zero_grad()
-                loss = self.skip_gram_modelmodel(pos_u, pos_v, neg_v, self.batch_size)
+                loss = self.skip_gram_model(pos_u, pos_v, neg_v, self.batch_size)
                 loss.backward()
                 optimizer.step()
 

@@ -1,197 +1,132 @@
-import csv
-import json
-from scipy.stats import spearmanr
+import os
+import random
 import collections
 import numpy as np
 
-import math
-import os
-import random
+from torch.utils.data import Dataset
 
 data_index = 0
 
 
-class Options(object):
+class DataReader(object):
+    NEGATIVE_TABLE_SIZE = 1e8
+
     def __init__(self, datafile, vocabulary_size):
-        self.vocabulary_size = vocabulary_size
+        self.text_size = vocabulary_size
         self.save_path = "tmp"
-        self.vocabulary = self.read_data(datafile)
-        data_or, self.count, self.vocab_words = self.build_dataset(self.vocabulary,
-                                                                   self.vocabulary_size)
-        self.train_data = self.subsampling(data_or)
-        #self.train_data = data_or
+        self.negatives = []
+        self.negpos = 0  # used for negtive sampling
 
-        self.sample_table = self.init_sample_table()
-
+        self.text = self.read_data(datafile)
+        self.build_dataset(self.text, self.text_size)
         self.save_vocab()
+        self.train_data = self.subsampling(self.data_encoded)
+        self.init_negtives_table()
+
 
     def read_data(self, filename):
         with open(filename) as f:
             data = f.read().split()
-            # data = [x for x in data if x != 'eoood']
+            print("len data:", len(data))
+            data = [x.lower() for x in data]
         return data
 
     def build_dataset(self, words, n_words):
-        """Process raw inputs into a ."""
-        count = [['UNK', -1]]
-        count.extend(collections.Counter(words).most_common(n_words - 1))
-        dictionary = dict()
-        for word, _ in count:
-            dictionary[word] = len(dictionary)
-        data = list()
-        unk_count = 0
-        for word in words:
-            if word in dictionary:
-                index = dictionary[word]
-            else:
-                index = 0  # dictionary['UNK']
-                unk_count += 1
-            data.append(index)
-        count[0][1] = unk_count
-        reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
-        return data, count, reversed_dictionary
+        counter = dict(collections.Counter(words).most_common(n_words - 1))
+        counter["<unk>"] = len(words) - np.sum(list(counter.values()))
+
+        self.id2word = [word for word in counter.keys()]
+        self.word2id = {word: id for id, word in enumerate(self.id2word)}
+
+        self.word_count = np.array(list(counter.values()), dtype=np.float32)
+        self.word_frequency = self.word_count / np.sum(self.word_count)
+        self.data_encoded = [self.word2id[word] for word in words]
 
     def save_vocab(self):
         with open(os.path.join(self.save_path, "vocab.txt"), "w") as f:
-            for i in xrange(len(self.count)):
-                vocab_word = self.vocab_words[i]
-                f.write("%s %d\n" % (vocab_word, self.count[i][1]))
+            for i in range(len(self.word_count)):
+                vocab_word = self.id2word[i]
+                f.write("%s %d\n" % (vocab_word, self.word_count[i]))
 
-    def init_sample_table(self):
-        count = [ele[1] for ele in self.count]
-        pow_frequency = np.array(count)**0.75
-        power = sum(pow_frequency)
-        ratio = pow_frequency / power
-        table_size = 1e8
-        count = np.round(ratio*table_size)
-        sample_table = []
-        for idx, x in enumerate(count):
-            sample_table += [idx]*int(x)
-        return np.array(sample_table)
-
-    def weight_table(self):
-        count = [ele[1] for ele in self.count]
-        pow_frequency = np.array(count)**0.75
-        power = sum(pow_frequency)
-        ratio = pow_frequency / power
-        return np.array(ratio)
+    def init_negtives_table(self):
+        pow_frequency = self.word_frequency ** 0.75
+        ratio = pow_frequency / np.sum(pow_frequency)
+        count = np.round(ratio * self.NEGATIVE_TABLE_SIZE)
+        for wid, c in enumerate(count):
+            self.negatives += [wid] * int(c)
+        self.negatives = np.array(self.negatives)
+        np.random.shuffle(self.negatives)
 
     def subsampling(self, data):
-        count = [ele[1] for ele in self.count]
-        frequency = np.array(count)/sum(count)
-        P = dict()
-        for idx, x in enumerate(frequency):
-            y = (math.sqrt(x/0.001)+1)*0.001/x
-            P[idx] = y
-        subsampled_data = list()
-        for word in data:
-            if random.random() < P[word]:
-                subsampled_data.append(word)
+        t = 0.0001
+        discards = np.sqrt(t / self.word_frequency) + (t / self.word_frequency)
+        subsampled_data = [id for id in data if random.random() < discards[id]]
         return subsampled_data
 
     def generate_batch(self, window_size, batch_size, count):
         data = self.train_data
         global data_index
         span = 2 * window_size + 1
-        context = np.ndarray(
-            shape=(batch_size, 2 * window_size), dtype=np.int64)
+        context = np.ndarray(shape=(batch_size, 2 * window_size), dtype=np.int64)
         labels = np.ndarray(shape=(batch_size), dtype=np.int64)
         pos_pair = []
 
         if data_index + span > len(data):
             data_index = 0
             self.process = False
-        buffer = data[data_index:data_index + span]
+        buffer = data[data_index : data_index + span]
         pos_u = []
         pos_v = []
 
         for i in range(batch_size):
             data_index += 1
-            context[i, :] = buffer[:window_size]+buffer[window_size+1:]
+            context[i, :] = buffer[:window_size] + buffer[window_size + 1 :]
             labels[i] = buffer[window_size]
             if data_index + span > len(data):
                 buffer[:] = data[:span]
                 data_index = 0
                 self.process = False
             else:
-                buffer = data[data_index:data_index + span]
+                buffer = data[data_index : data_index + span]
 
-            for j in range(span-1):
+            for j in range(span - 1):
                 pos_u.append(labels[i])
                 pos_v.append(context[i, j])
-        neg_v = np.random.choice(self.sample_table, size=(
-            batch_size*2*window_size, count))
+        neg_v = np.random.choice(
+            self.negatives, size=(batch_size * 2 * window_size, count)
+        )
         return np.array(pos_u), np.array(pos_v), neg_v
 
+    def get_negatives(self, size):
+        negs = self.negatives[self.negpos : self.negpos + size]
+        self.negpos = (self.negpos + size) % len(self.negatives)
+        if len(negs) != size:
+            return np.concatenate((negs, self.negatives[0 : self.negpos]))
+        # check equality with target
+        # for i in range(len(negs)):
+        #     if negs[i] == target:
+        #         negs[i] = self.negatives[self.negpos]
+        #         self.negpos = (self.negpos + 1) % len(self.negatives)
+        return negs
 
-def cosine_similarity(v1, v2):
-    "compute cosine similarity of v1 to v2: (v1 dot v2)/{||v1||*||v2||)"
-    sumxx, sumxy, sumyy = 0, 0, 0
-    for i in range(len(v1)):
-        x = v1[i]
-        y = v2[i]
-        sumxx += x*x
-        sumyy += y*y
-        sumxy += x*y
-    return sumxy/math.sqrt(sumxx*sumyy)
 
+class Word2vecDataset(Dataset):
+    def __init__(self, data, window_size, neg_count=10):
+        self.data = data
+        self.window_size = window_size
+        self.neg_count = neg_count  # The paper says that selecting 5-20 words works well for smaller datasets, and you can get away with only 2-5 words for large datasets.
 
-def scorefunction(embed):
-    f = open('./tmp/vocab.txt')
-    line = f.readline()
-    vocab = []
-    wordindex = dict()
-    index = 0
-    while line:
-        word = line.strip().split()[0]
-        wordindex[word] = index
-        index = index + 1
-        line = f.readline()
-    f.close()
-    ze = []
-    with open('./skip_gram_pytorch/wordsim353/combined.csv') as csvfile:
-        filein = csv.reader(csvfile)
-        index = 0
-        consim = []
-        humansim = []
-        for eles in filein:
-            if index == 0:
-                index = 1
-                continue
-            if (eles[0] not in wordindex) or (eles[1] not in wordindex):
-                continue
+    def __len__(self):
+        return len(self.data.train_data)
 
-            word1 = int(wordindex[eles[0]])
-            word2 = int(wordindex[eles[1]])
-            humansim.append(float(eles[2]))
+    def __getitem__(self, idx):
+        pos_u = np.array(self.data[idx])
 
-            value1 = embed[word1]
-            value2 = embed[word2]
-            index = index + 1
-            score = cosine_similarity(value1, value2)
-            consim.append(score)
-
-    cor1, pvalue1 = spearmanr(humansim, consim)
-
-    if 1 == 1:
-        lines = open('./skip_gram_pytorch/rw/rw.txt', 'r').readlines()
-        index = 0
-        consim = []
-        humansim = []
-        for line in lines:
-            eles = line.strip().split()
-            if (eles[0] not in wordindex) or (eles[1] not in wordindex):
-                continue
-            word1 = int(wordindex[eles[0]])
-            word2 = int(wordindex[eles[1]])
-            humansim.append(float(eles[2]))
-
-            value1 = embed[word1]
-            value2 = embed[word2]
-            index = index + 1
-            score = cosine_similarity(value1, value2)
-            consim.append(score)
-
-    cor2, pvalue2 = spearmanr(humansim, consim)
-
-    return cor1, cor2
+        C = self.window_size
+        pos_v_idx = list(range(max(idx - C, 0), idx)) + list(
+            range(idx + 1, min(idx + C + 1, len(self.data) - 1))
+        )
+        pos_v = np.array(self.data[pos_v_idx])
+        neg_v = self.data.get_negatives(2 * self.window_size * self.neg_count)
+        return pos_u, pos_v, neg_v
+        # neg_v = np.random.choice(self.data.negatives, size=2*self.window_size*self.neg_count)

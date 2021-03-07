@@ -42,9 +42,9 @@ class Word2VecTrainer:
             for i, sample_batched in enumerate(tqdm(self.dataloader)):
 
                 if len(sample_batched[0]) > 1:
-                    pos_u = sample_batched[0].to(self.device)
-                    pos_v = sample_batched[1].to(self.device)
-                    neg_v = sample_batched[2].to(self.device)
+                    pos_u = sample_batched[0].to(self.device) # (B, 1)
+                    pos_v = sample_batched[1].to(self.device) # (B, 1)
+                    neg_v = sample_batched[2].to(self.device) # (B, neg_count)
 
                     # scheduler.step()
                     optimizer.zero_grad()
