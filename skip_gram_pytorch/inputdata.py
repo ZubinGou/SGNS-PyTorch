@@ -40,7 +40,7 @@ class DataReader(object):
 
         self.word_count = np.array(list(counter.values()), dtype=np.float32)
         self.word_frequency = self.word_count / np.sum(self.word_count)
-        self.data_encoded = [self.word2id[word] for word in words]
+        self.data_encoded = [self.word2id.get(word, self.word2id["<unk>"]) for word in words]
 
     def save_vocab(self):
         with open(os.path.join(self.save_path, "vocab.txt"), "w") as f:

@@ -10,7 +10,7 @@ from skip_gram_pytorch.model import skipgram
 
 
 class word2vec:
-    def __init__(self, inputfile, vocabulary_size=30000, embedding_dim=100, epoch_num=10, batch_size=32, windows_size=5, neg_sample_num=10):
+    def __init__(self, inputfile, vocabulary_size=100000, embedding_dim=300, epoch_num=10, batch_size=32, windows_size=5, neg_sample_num=10):
         self.data = DataReader(inputfile, vocabulary_size)
         self.embedding_dim = embedding_dim
         self.windows_size = windows_size
@@ -27,7 +27,9 @@ class word2vec:
             self.skip_gram_model.cuda()
 
     def train(self):
-        optimizer = optim.SGD(self.skip_gram_model.parameters(), lr=0.2)
+        # optimizer = optim.SGD(self.skip_gram_model.parameters(), lr=0.3)
+        optimizer = optim.SparseAdam(list(self.skip_gram_model.parameters()), lr=0.001)
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, len(self.dataloader))
         for epoch in range(1, self.epoch_num + 1):
             # print(f"\nEpoch: {epoch} ")
             start = time.time()
