@@ -74,7 +74,7 @@ class DataReader(object):
 
         for _ in range(batch_size):
             if data_index + span > len(data):
-                buffer[:] = data[:span]
+                buffer = data[:span]
                 data_index = 0
                 self.process = False
             else:

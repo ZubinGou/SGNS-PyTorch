@@ -70,7 +70,7 @@ class Word2VecTrainer:
                     self.skip_gram_model.save_embedding(f"tmp/epoch{epoch}.batch{batch_num}.vec", self.data.id2word)
 
                 running_loss = running_loss * 0.9 + loss.data.item() * 0.1
-                print_per = 100
+                print_per = 10000
                 if batch_num % print_per == 0:
                     end = time.time()
                     word_embeddings = self.skip_gram_model.u_embeddings.weight.cpu().data.numpy()
