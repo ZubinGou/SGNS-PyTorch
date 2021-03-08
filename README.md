@@ -40,6 +40,9 @@ $$
 P_n(w_i)=f(w_i)^{3 / 4} / Z
 $$
 
+## 训练
+在 `text8` 语料上训练，默认采用词向量维数为100，词典大小为50000。
+
 ## 评估
 1. 基于词向量的语言学特性
     - similarity task 词相似
@@ -47,10 +50,9 @@ $$
 2. Task-specific
     - 对具体任务的性能提升
 
-这里我们基于词相似，在 `WordSim-353` and `SimLex-999`上进行评估
+我们基于词相似，在 `WordSim-353`、`Stanford Rare Word (RW)` 和 `SimLex-999` 上进行评估
 
-语料：[One Billion Words Benchmark for Language Modeling](https://opensource.google/projects/lm-benchmark)
-
+## 结果
 
 ## Reference
 - https://github.com/theeluwin/pytorch-sgns

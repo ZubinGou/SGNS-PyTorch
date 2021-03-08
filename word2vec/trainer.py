@@ -2,6 +2,7 @@ import torch
 import time
 import torch.optim as optim
 from torch.autograd import Variable
+from torch.optim import optimizer
 
 from word2vec.data_reader import DataReader
 from word2vec.utils import evaluate
@@ -39,7 +40,8 @@ class Word2VecTrainer:
 
     def train(self):
         # optimizer = optim.SGD(self.skip_gram_model.parameters(), lr=0.3)
-        optimizer = optim.SparseAdam(list(self.skip_gram_model.parameters()), lr=0.001)
+        # optimizer = optim.SparseAdam(list(self.skip_gram_model.parameters()), lr=0.001)
+        optimizer = optim.Adam(self.skip_gram_model.parameters(), lr=0.001)
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, len(self.dataloader))
 
         running_loss = 0
