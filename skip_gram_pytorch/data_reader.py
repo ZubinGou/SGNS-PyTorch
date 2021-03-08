@@ -4,8 +4,6 @@ import collections
 import numpy as np
 import torch
 
-from torch.utils.data import Dataset
-
 data_index = 0
 
 
@@ -66,25 +64,15 @@ class DataReader(object):
         subsampled_data = [id for id in data if random.random() < discards[id]]
         return subsampled_data
 
-    def generate_batch(self, window_size, batch_size, count):
+    def generate_batch(self, window_size, batch_size, neg_sample_num):
         data = self.train_data
         global data_index
         span = 2 * window_size + 1
-        context = np.ndarray(shape=(batch_size, 2 * window_size), dtype=np.int64)
-        labels = np.ndarray(shape=(batch_size), dtype=np.int64)
-        pos_pair = []
 
-        if data_index + span > len(data):
-            data_index = 0
-            self.process = False
-        buffer = data[data_index : data_index + span]
-        pos_u = []
-        pos_v = []
+        pos_u = []  # (B * window_size * 2)
+        pos_v = []  # (B * window_size * 2)
 
-        for i in range(batch_size):
-            data_index += 1
-            context[i, :] = buffer[:window_size] + buffer[window_size + 1 :]
-            labels[i] = buffer[window_size]
+        for _ in range(batch_size):
             if data_index + span > len(data):
                 buffer[:] = data[:span]
                 data_index = 0
@@ -92,35 +80,12 @@ class DataReader(object):
             else:
                 buffer = data[data_index : data_index + span]
 
-            for j in range(span - 1):
-                pos_u.append(labels[i])
-                pos_v.append(context[i, j])
+            pos_u.extend([buffer[window_size]] * window_size * 2)
+            pos_v.extend(buffer[:window_size] + buffer[window_size + 1 :])
+
+            data_index += 1
+
         neg_v = np.random.choice(
-            self.negatives, size=(batch_size * 2 * window_size, count)
+            self.negatives, size=(batch_size * 2 * window_size, neg_sample_num)
         )
-        return np.array(pos_u), np.array(pos_v), neg_v
-
-
-class Word2vecDataset(Dataset):
-    def __init__(self, data, window_size, neg_sample_num=10):
-        self.data = data
-        self.dataset = np.array(self.data.train_data)
-        self.window_size = window_size
-        self.neg_sample_num = neg_sample_num  # The paper says that selecting 5-20 words works well for smaller datasets, and you can get away with only 2-5 words for large datasets.
-        self.data_len = len(self.dataset) - self.window_size * 2 - 1
-
-    def __len__(self):
-        return self.data_len
-
-    def __getitem__(self, idx):
-        C = self.window_size
-        pos_u = self.dataset[idx + C]  # (1)
-        pos_v_idx = list(range(idx, idx + C)) + list(
-            range(idx + C + 1, idx + C * 2 + 1)
-        )
-        pos_v = self.dataset[pos_v_idx]  # (window_size * 2)
-        # (window_size * 2 * neg_sample_num)
-        neg_v = np.random.choice(
-            self.data.negatives, size=2 * self.window_size * self.neg_sample_num
-        )
-        return pos_u, pos_v, neg_v
+        return torch.LongTensor(pos_u), torch.LongTensor(pos_v), torch.LongTensor(neg_v)

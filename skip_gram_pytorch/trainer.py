@@ -3,37 +3,36 @@ import torch.nn as nn
 import time
 import torch.optim as optim
 from torch.autograd import Variable
-from torch.utils.data import DataLoader
 
-from skip_gram_pytorch.inputdata import DataReader, Word2vecDataset
+from skip_gram_pytorch.data_reader import DataReader
 from skip_gram_pytorch.utils import scorefunction
 from skip_gram_pytorch.model import skipgram
 
 
-class word2vec:
+class Word2VecTrainer:
     def __init__(
         self,
         inputfile,
-        vocabulary_size=30000,
-        embedding_dim=100,
-        epoch_num=10,
+        vocabulary_size=50000,
+        embedding_dim=300,
+        epoch_num=20,
         batch_size=32,
         windows_size=5,
         neg_sample_num=10,
+        saved_model_path="",
+        output_file_name="sgns.vec",
     ):
         self.data = DataReader(inputfile, vocabulary_size)
-        dataset = Word2vecDataset(self.data, neg_sample_num)
-        self.dataloader = DataLoader(
-            dataset, batch_size=batch_size, shuffle=True, num_workers=16
-        )
-        self.embedding_dim = embedding_dim
         self.windows_size = windows_size
-        self.vocabulary_size = vocabulary_size
         self.batch_size = batch_size
         self.epoch_num = epoch_num
         self.neg_sample_num = neg_sample_num
 
-        self.skip_gram_model = skipgram(self.vocabulary_size, self.embedding_dim)
+        self.skip_gram_model = skipgram(vocabulary_size, embedding_dim)
+        if saved_model_path:
+            self.skip_gram_model.load_state_dict(torch.load(saved_model_path))
+        self.output_file_name = output_file_name
+
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda" if self.use_cuda else "cpu")
         if self.use_cuda:
@@ -43,46 +42,57 @@ class word2vec:
         # optimizer = optim.SGD(self.skip_gram_model.parameters(), lr=0.3)
         optimizer = optim.SparseAdam(list(self.skip_gram_model.parameters()), lr=0.001)
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, len(self.dataloader))
+
+        running_loss = 0
         for epoch in range(1, self.epoch_num + 1):
-            # print(f"\nEpoch: {epoch} ")
             start = time.time()
             self.data.process = True
-            for batch_num, (pos_u, pos_v, neg_v) in enumerate(self.dataloader):
-                # pos_u = pos_u.long().to(self.device)  # (B)
-                # pos_v = pos_v.long().to(self.device)  # (B, window_size * 2)
-                # neg_v = neg_v.long().to(
-                #     self.device
-                # )  # (B, window_size * 2 * neg_samplge_num)
-                pos_u = Variable(pos_u.long()).to(self.device) # (B)
-                pos_v = Variable(pos_v.long()).to(self.device) # (B)
-                neg_v = Variable(neg_v.long()).to(self.device) # (B, neg_sample_num)
+
+            batch_num = 0
+            running_loss = 0
+            while self.data.process:
+                pos_u, pos_v, neg_v = self.data.generate_batch(
+                    self.windows_size, self.batch_size, self.neg_sample_num
+                )
+                pos_u = Variable(pos_u).to(self.device) # (B * C * 2)
+                pos_v = Variable(pos_v).to(self.device) # (B * C * 2)
+                neg_v = Variable(neg_v).to(self.device) # (B * C * 2, neg_sample_num)
+
                 optimizer.zero_grad()
                 loss = self.skip_gram_model(pos_u, pos_v, neg_v)
                 loss.backward()
                 optimizer.step()
 
+                if batch_num % 50000 == 0:
+                    torch.save(
+                        self.skip_gram_model.state_dict(),
+                        f"./tmp/skipgram.epoch{epoch}.batch{batch_num}",
+                    )
+                running_loss = running_loss * 0.9 + loss.data.item() * 0.1
                 print_per = 1000
-                if batch_num % print_per == 0:
+                if batch_num % 1000 == 0:
                     end = time.time()
-                    word_embeddings = self.skip_gram_model.input_embeddings()
+                    word_embeddings = self.skip_gram_model.u_embeddings.weight.cpu().data.numpy()
                     sp1, sp2 = scorefunction(word_embeddings)
                     print(
-                        "eporch=%2d, batch=%5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f\r"
-                        % (
+                        "epoch=%2d, batch=%5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f\r" % (
                             epoch,
                             batch_num,
                             sp1,
                             sp2,
                             print_per * self.batch_size / (end - start),
-                            loss.data.item(),
+                            running_loss,
                         ),
-                        end=""
+                        end="",
                     )
                     start = time.time()
+                batch_num = batch_num + 1
+
+            self.skip_gram_model.save_embedding(self.output_file_name, self.data.id2word)
             print()
         print("Optimization Finished!")
 
 
 if __name__ == "__main__":
-    wc = word2vec("text8")
+    wc = Word2VecTrainer("text8")
     wc.train()

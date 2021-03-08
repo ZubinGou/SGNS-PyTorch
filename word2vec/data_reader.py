@@ -113,7 +113,7 @@ class Word2vecDataset(Dataset):
 
                     boundary = np.random.randint(1, self.window_size)
                     return [
-                        (u, v, self.data.getNegatives(v, 5))
+                        (u, v, self.data.get_negatives(v, 5))
                         for i, u in enumerate(word_ids)
                         for j, v in enumerate(
                             word_ids[max(i - boundary, 0) : i + boundary]

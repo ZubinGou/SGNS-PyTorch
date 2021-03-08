@@ -15,24 +15,22 @@ class skipgram(nn.Module):
         self.v_embeddings.weight.data.uniform_(-0, 0)  # why 0?
 
     def forward(self, u_pos, v_pos, v_neg):
-        embed_u = self.u_embeddings(u_pos)  # (B, N)
-        embed_v = self.v_embeddings(v_pos)  # (B, window_size * 2, N)
-        embed_neg_v = self.v_embeddings(v_neg)  # (B, window_size * 2 * neg_samplge_num, N)
+        embed_u = self.u_embeddings(u_pos)  # (B * C * 2, N)
+        embed_v = self.v_embeddings(v_pos)  # (B * C * 2, N)
+        embed_neg_v = self.v_embeddings(v_neg)  # (B * C * 2, neg_sample_num, N)
 
-        score_pos = torch.bmm(embed_v, embed_u.unsqueeze(2)).squeeze() # (B, window_size * 2)
-        score_neg = torch.bmm(embed_neg_v, embed_u.unsqueeze(2)).squeeze() # (B, window_size * 2 * neg_samplge_num)
+        loss_pos = torch.mul(embed_u, embed_v)
+        loss_neg = torch.bmm(embed_neg_v, embed_u.unsqueeze(2)).squeeze()
 
-        score_pos = F.logsigmoid(score_pos.sum(1))
-        score_neg = F.logsigmoid(-score_neg.sum(1))
-        return -torch.mean(score_pos + score_neg)
+        loss_pos = F.logsigmoid(loss_pos.sum(1))  # (B)
+        loss_neg = F.logsigmoid(-loss_neg.sum(1))  # (B)
 
-    def input_embeddings(self):
-        return self.u_embeddings.weight.data.cpu().numpy()
+        return -torch.mean(loss_pos + loss_neg)
 
     def save_embedding(self, file_name, id2word):
-        embeds = self.u_embeddings.weight.data
-        fo = open(file_name, "w")
-        for idx in range(len(embeds)):
-            word = id2word(idx)
-            embed = " ".join(embeds[idx])
-            fo.write(word + " " + embed + "\n")
+        embeds = self.u_embeddings.weight.cpu().data.numpy()
+        with open(file_name, "w") as f:
+            f.write('%d %d\n' % (len(id2word), self.embedding_dim))
+            for id, w in enumerate(id2word):
+                e = ' '.join(map(lambda x: str(x), embeds[id]))
+                f.write('%s %s\n' % (w, e))
