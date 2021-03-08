@@ -2,49 +2,35 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-"""
-    u_embedding: Embedding for center word.
-    v_embedding: Embedding for neighbor words.
-"""
 
+class skipgram(nn.Module):
+    def __init__(self, vocab_size, embedding_dim):
+        super(skipgram, self).__init__()
+        self.u_embeddings = nn.Embedding(vocab_size, embedding_dim, sparse=True)
+        self.v_embeddings = nn.Embedding(vocab_size, embedding_dim, sparse=True)
+        self.embedding_dim = embedding_dim
 
-class SkipGramModel(nn.Module):
-
-    def __init__(self, vocab_size, emb_dimension):
-        super(SkipGramModel, self).__init__()
-        self.vocab_size = vocab_size # V
-        self.emb_dimension = emb_dimension # N
-        self.u_embeddings = nn.Embedding(
-            vocab_size, emb_dimension, sparse=True)
-        self.v_embeddings = nn.Embedding(
-            vocab_size, emb_dimension, sparse=True)
-
-        initrange = 1.0 / self.emb_dimension
+        initrange = 0.5 / self.embedding_dim
         self.u_embeddings.weight.data.uniform_(-initrange, initrange)
-        self.v_embeddings.weight.data.uniform_(-0, 0)
+        self.v_embeddings.weight.data.uniform_(-0, 0)  # why 0?
 
-        # init.constant_(self.v_embeddings.weight.data, 0)
-        # self.v_embeddings.weight.data.uniform_(-0, 0)
+    def forward(self, u_pos, v_pos, v_neg):
+        embed_u = self.u_embeddings(u_pos)  # (B * C * 2, N)
+        embed_v = self.v_embeddings(v_pos)  # (B * C * 2, N)
+        embed_neg_v = self.v_embeddings(v_neg)  # (B * C * 2, neg_sample_num, N)
 
-    def forward(self, pos_u, pos_v, neg_v):
-        emb_u = self.u_embeddings(pos_u) # (B, N)
-        emb_v = self.v_embeddings(pos_v) # (B, N)
-        emb_neg_v = self.v_embeddings(neg_v) # (B, neg_count, N)
+        loss_pos = torch.mul(embed_u, embed_v)
+        loss_neg = torch.bmm(embed_neg_v, embed_u.unsqueeze(2)).squeeze()
 
-        score = torch.sum(torch.mul(emb_u, emb_v), dim=1) # (B)
-        # score = torch.clamp(score, max=10, min=-10)
-        score = -F.logsigmoid(score) # (B)
+        loss_pos = F.logsigmoid(loss_pos.sum(1))  # (B)
+        loss_neg = F.logsigmoid(-loss_neg.sum(1))  # (B)
 
-        neg_score = torch.bmm(emb_neg_v, emb_u.unsqueeze(2)).squeeze() # (B, neg_count)
-        # neg_score = torch.clamp(neg_score, max=10, min=-10)
-        neg_score = -torch.sum(F.logsigmoid(neg_score), dim=1) # (B)
+        return -torch.mean(loss_pos + loss_neg)
 
-        return torch.mean(score + neg_score)
-
-    def save_embedding(self, id2word, file_name):
-        embedding = self.u_embeddings.weight.cpu().data.numpy()
-        with open(file_name, 'w') as f:
-            f.write('%d %d\n' % (len(id2word), self.emb_dimension))
-            for wid, w in id2word.items():
-                e = ' '.join(map(lambda x: str(x), embedding[wid]))
+    def save_embedding(self, file_name, id2word):
+        embeds = self.u_embeddings.weight.cpu().data.numpy()
+        with open(file_name, "w") as f:
+            f.write('%d %d\n' % (len(id2word), self.embedding_dim))
+            for id, w in enumerate(id2word):
+                e = ' '.join(map(lambda x: str(x), embeds[id]))
                 f.write('%s %s\n' % (w, e))

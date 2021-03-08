@@ -1,68 +1,99 @@
 import torch
+import time
 import torch.optim as optim
-from torch.optim import optimizer
-from torch.utils.data import DataLoader
-from tqdm import tqdm
+from torch.autograd import Variable
 
-from word2vec.data_reader import DataReader, Word2vecDataset
-from word2vec.model import SkipGramModel
+from word2vec.data_reader import DataReader
+from word2vec.utils import evaluate
+from word2vec.model import skipgram
 
 
 class Word2VecTrainer:
-    def __init__(self, input_file, output_file, emb_dimension=100, batch_size=32, window_size=5, epochs=3,
-                 initial_lr=0.001, min_count=12):
-
-        self.data = DataReader(input_file, min_count)
-        dataset = Word2vecDataset(self.data, window_size)
-        self.dataloader = DataLoader(dataset, batch_size=batch_size,
-                                     shuffle=False, num_workers=0, collate_fn=dataset.collate)
-
-        self.output_file_name = output_file
-        self.vocab_size = len(self.data.word2id)
-        self.emb_dimension = emb_dimension
+    def __init__(
+        self,
+        inputfile,
+        vocabulary_size=50000,
+        embedding_dim=100,
+        epoch_num=10,
+        batch_size=32,
+        windows_size=5,
+        neg_sample_num=10,
+        saved_model_path="",
+        output_file="sgns.vec",
+    ):
+        self.data = DataReader(inputfile, vocabulary_size)
+        self.windows_size = windows_size
         self.batch_size = batch_size
-        self.epochs = epochs
-        self.initial_lr = initial_lr
-        self.skip_gram_model = SkipGramModel(self.vocab_size, self.emb_dimension)
+        self.epoch_num = epoch_num
+        self.neg_sample_num = neg_sample_num
+
+        self.skip_gram_model = skipgram(vocabulary_size, embedding_dim)
+        if saved_model_path:
+            self.skip_gram_model.load_state_dict(torch.load(saved_model_path))
+        self.output_file_name = output_file
 
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda" if self.use_cuda else "cpu")
-
+        if self.use_cuda:
+            self.skip_gram_model.cuda()
 
     def train(self):
-
-        # optimizer = optim.SparseAdam(self.skip_gram_model.parameters(), lr=self.initial_lr) # ? list()
+        # optimizer = optim.SGD(self.skip_gram_model.parameters(), lr=0.3)
+        optimizer = optim.SparseAdam(list(self.skip_gram_model.parameters()), lr=0.001)
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, len(self.dataloader))
-        optimizer = optim.SGD(self.skip_gram_model.parameters(), lr=0.2)
-        for epoch in range(self.epochs):
 
-            print("\nEpoch: " + str(epoch + 1))
+        running_loss = 0
+        for epoch in range(1, self.epoch_num + 1):
+            start = time.time()
+            self.data.process = True
 
-            running_loss = 0.0
-            for i, sample_batched in enumerate(tqdm(self.dataloader)):
+            batch_num = 0
+            running_loss = 0
+            while self.data.process:
+                pos_u, pos_v, neg_v = self.data.generate_batch(
+                    self.windows_size, self.batch_size, self.neg_sample_num
+                )
+                pos_u = Variable(pos_u).to(self.device) # (B * C * 2)
+                pos_v = Variable(pos_v).to(self.device) # (B * C * 2)
+                neg_v = Variable(neg_v).to(self.device) # (B * C * 2, neg_sample_num)
 
-                if len(sample_batched[0]) > 1:
-                    pos_u = sample_batched[0].to(self.device) # (B, 1)
-                    pos_v = sample_batched[1].to(self.device) # (B, 1)
-                    neg_v = sample_batched[2].to(self.device) # (B, neg_count)
+                optimizer.zero_grad()
+                loss = self.skip_gram_model(pos_u, pos_v, neg_v)
+                loss.backward()
+                optimizer.step()
 
-                    # scheduler.step()
-                    optimizer.zero_grad()
-                    loss = self.skip_gram_model(pos_u, pos_v, neg_v)
-                    loss.backward()
-                    optimizer.step()
+                if batch_num % 50000 == 0:
+                    torch.save(
+                        self.skip_gram_model.state_dict(),
+                        f"./tmp/skipgram.epoch{epoch}.batch{batch_num}",
+                    )
+                    self.skip_gram_model.save_embedding(f"tmp/epoch{epoch}.batch{batch_num}.vec", self.data.id2word)
 
-                    # running_loss = running_loss * 0.9 + loss.item() * 0.1
-                    running_loss = loss.item()
+                running_loss = running_loss * 0.9 + loss.data.item() * 0.1
+                print_per = 100
+                if batch_num % print_per == 0:
+                    end = time.time()
+                    word_embeddings = self.skip_gram_model.u_embeddings.weight.cpu().data.numpy()
+                    sp1, sp2 = evaluate(word_embeddings, self.data.word2id)
+                    print(
+                        "epoch=%2d, batch=%5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f" % (
+                            epoch,
+                            batch_num,
+                            sp1,
+                            sp2,
+                            print_per * self.batch_size / (end - start),
+                            running_loss,
+                        ),
+                        end="\n",
+                    )
+                    start = time.time()
+                batch_num = batch_num + 1
 
-                    if i > 0 and i % 2 == 0:
-                        print(" Loss: " + str(running_loss))
+            self.skip_gram_model.save_embedding(self.output_file_name, self.data.id2word)
+            print()
+        print("Optimization Finished!")
 
-            self.skip_gram_model.save_embedding(self.data.id2word, self.output_file_name)
 
-
-if __name__ == '__main__':
-    from gensim.test.utils import datapath
-    corpus_path = datapath('lee_background.cor')
-    w2v = Word2VecTrainer(input_file=corpus_path, output_file="out.vec")
-    w2v.train()
+if __name__ == "__main__":
+    wc = Word2VecTrainer("text8")
+    wc.train()

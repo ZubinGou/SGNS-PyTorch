@@ -1,136 +1,91 @@
+import os
+import random
+import collections
 import numpy as np
 import torch
-from torch.utils.data import Dataset
 
-np.random.seed(114514)
+data_index = 0
 
 
-class DataReader:
+class DataReader(object):
     NEGATIVE_TABLE_SIZE = 1e8
 
-    def __init__(self, inputFileName, min_count):
-
+    def __init__(self, datafile, vocabulary_size):
+        self.text_size = vocabulary_size
+        self.save_path = "tmp"
         self.negatives = []
-        self.discards = []
-        self.negpos = 0
+        self.negpos = 0  # used for negtive sampling
 
-        self.word2id = dict()
-        self.id2word = dict()
-        self.sentences_count = 0
-        self.token_count = 0
-        self.word_frequency = dict()
+        self.text = self.read_data(datafile)
+        self.build_dataset(self.text, self.text_size)
+        self.save_vocab()
+        self.train_data = self.subsampling(self.data_encoded)
+        self.init_negtives_table()
 
-        self.inputFileName = inputFileName
-        self.read_words(min_count)
-        self.initTableNegatives()
-        self.initTableDiscards()
+    def read_data(self, filename):
+        with open(filename) as f:
+            data = f.read().split()
+            print("len data:", len(data))
+            data = [x.lower() for x in data]
+        return data
 
-    def read_words(self, min_count):
-        word_frequency = dict()
-        for line in open(self.inputFileName, encoding="utf8"):
-            line = line.split()
-            if len(line) > 1:
-                self.sentences_count += 1
-                for word in line:
-                    if len(word) > 0:
-                        self.token_count += 1
-                        word_frequency[word] = word_frequency.get(word, 0) + 1
+    def build_dataset(self, words, n_words):
+        counter = dict(collections.Counter(words).most_common(n_words - 1))
+        counter["<unk>"] = len(words) - np.sum(list(counter.values()))
 
-                        if self.token_count % 1000000 == 0:
-                            print(
-                                "Read "
-                                + str(int(self.token_count / 1000000))
-                                + "M words."
-                            )
+        self.id2word = [word for word in counter.keys()]
+        self.word2id = {word: id for id, word in enumerate(self.id2word)}
 
-        wid = 0
-        for w, c in word_frequency.items():
-            if c < min_count:
-                continue
-            self.word2id[w] = wid
-            self.id2word[wid] = w
-            self.word_frequency[wid] = c
-            wid += 1
-        print("Total embeddings: " + str(len(self.word2id)))
+        self.word_count = np.array(list(counter.values()), dtype=np.float32)
+        self.word_frequency = self.word_count / np.sum(self.word_count)
+        self.data_encoded = [
+            self.word2id.get(word, self.word2id["<unk>"]) for word in words
+        ]
 
-    def initTableDiscards(self):
-        t = 0.0001
-        f = np.array(list(self.word_frequency.values())) / self.token_count
-        self.discards = np.sqrt(t / f) + (t / f)
+    def save_vocab(self):
+        with open(os.path.join(self.save_path, "vocab.txt"), "w") as f:
+            for i in range(len(self.word_count)):
+                vocab_word = self.id2word[i]
+                f.write("%s %d\n" % (vocab_word, self.word_count[i]))
 
-    def initTableNegatives(self):
-        pow_frequency = np.array(list(self.word_frequency.values())) ** 0.5
-        words_pow = sum(pow_frequency)
-        ratio = pow_frequency / words_pow
-        count = np.round(ratio * DataReader.NEGATIVE_TABLE_SIZE)
+    def init_negtives_table(self):
+        pow_frequency = self.word_frequency ** 0.75
+        ratio = pow_frequency / np.sum(pow_frequency)
+
+        count = np.round(ratio * self.NEGATIVE_TABLE_SIZE)
         for wid, c in enumerate(count):
             self.negatives += [wid] * int(c)
         self.negatives = np.array(self.negatives)
         np.random.shuffle(self.negatives)
 
-    def get_negatives(self, target, size):
-        negs = self.negatives[self.negpos : self.negpos + size]
-        self.negpos = (self.negpos + size) % len(self.negatives)
-        if len(negs) != size:
-            return np.concatenate((negs, self.negatives[0 : self.negpos]))
-        # check equality with target
-        # for i in range(len(negs)):
-        #     if negs[i] == target:
-        #         negs[i] = self.negatives[self.negpos]
-        #         self.negpos = (self.negpos + 1) % len(self.negatives)
-        return negs
+    def subsampling(self, data):
+        t = 0.0001
+        discards = np.sqrt(t / self.word_frequency) + (t / self.word_frequency)
+        subsampled_data = [id for id in data if random.random() < discards[id]]
+        return subsampled_data
 
+    def generate_batch(self, window_size, batch_size, neg_sample_num):
+        data = self.train_data
+        global data_index
+        span = 2 * window_size + 1
 
-# -----------------------------------------------------------------------------------------------------------------
+        pos_u = []  # (B * window_size * 2)
+        pos_v = []  # (B * window_size * 2)
 
+        for _ in range(batch_size):
+            if data_index + span > len(data):
+                buffer[:] = data[:span]
+                data_index = 0
+                self.process = False
+            else:
+                buffer = data[data_index : data_index + span]
 
-class Word2vecDataset(Dataset):
-    def __init__(self, data, window_size):
-        self.data = data
-        self.window_size = window_size
-        self.input_file = open(data.inputFileName, encoding="utf8")
+            pos_u.extend([buffer[window_size]] * window_size * 2)
+            pos_v.extend(buffer[:window_size] + buffer[window_size + 1 :])
 
-    def __len__(self):
-        return self.data.sentences_count
+            data_index += 1
 
-    def __getitem__(self, idx):
-        while True:
-            line = self.input_file.readline()
-            if not line:
-                self.input_file.seek(0, 0)
-                line = self.input_file.readline()
-
-            if len(line) > 1:
-                words = line.split()
-
-                if len(words) > 1:
-                    word_ids = [
-                        self.data.word2id[w]
-                        for w in words
-                        if w in self.data.word2id
-                        and np.random.rand() < self.data.discards[self.data.word2id[w]]
-                    ]
-
-                    boundary = np.random.randint(1, self.window_size)
-                    return [
-                        (u, v, self.data.get_negatives(v, 5))
-                        for i, u in enumerate(word_ids)
-                        for j, v in enumerate(
-                            word_ids[max(i - boundary, 0) : i + boundary]
-                        )
-                        if u != v
-                    ]
-
-    @staticmethod
-    def collate(batches):
-        all_u = [u for batch in batches for u, _, _ in batch if len(batch) > 0]
-        all_v = [v for batch in batches for _, v, _ in batch if len(batch) > 0]
-        all_neg_v = [
-            neg_v for batch in batches for _, _, neg_v in batch if len(batch) > 0
-        ]
-
-        return (
-            torch.LongTensor(all_u),
-            torch.LongTensor(all_v),
-            torch.LongTensor(all_neg_v),
+        neg_v = np.random.choice(
+            self.negatives, size=(batch_size * 2 * window_size, neg_sample_num)
         )
+        return torch.LongTensor(pos_u), torch.LongTensor(pos_v), torch.LongTensor(neg_v)

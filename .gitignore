@@ -5,8 +5,7 @@ __pycache__/
 
 # data
 dataset/
-out.vec
-sgns.vec
+*.vec
 tmp/
 
 .vscode
