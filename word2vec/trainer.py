@@ -75,13 +75,14 @@ class Word2VecTrainer:
                 if batch_num % print_per == 0:
                     end = time.time()
                     word_embeddings = self.skip_gram_model.u_embeddings.weight.cpu().data.numpy()
-                    sp1, sp2 = evaluate(word_embeddings, self.data.word2id)
+                    sp1, sp2, sp3 = evaluate(word_embeddings, self.data.word2id)
                     print(
-                        "epoch=%2d, batch=%5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f" % (
+                        "epoch=%2d, batch=%5d: sp=%1.3f %1.3f %1.3f pair/sec = %4.2f loss=%4.3f" % (
                             epoch,
                             batch_num,
                             sp1,
                             sp2,
+                            sp3,
                             print_per * self.batch_size / (end - start),
                             running_loss,
                         ),

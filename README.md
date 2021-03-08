@@ -63,6 +63,8 @@ $$
 | SGNS-PyTorch | **0.661**      | 0.343        | 0.265      | text8      | 100       | 50000      | 1h   |
 | GoogleNews   | 0.659      | **0.553**        | **0.436**      | GoogleNews | 300       | 3000000    | -    |
 
+测试过程和结果在 [test.ipynb](https://github.com/ZubinGou/SGNS-PyTorch/blob/main/test.ipynb)
+
 ## References
 - https://github.com/Andras7/word2vec-pytorch
 - https://github.com/fanglanting/skip-gram-pytorch
