@@ -55,7 +55,7 @@ $$
 这里基于词相似，在 `WordSim-353`、`Stanford Rare Word (RW)` 和 `SimLex-999` 上利用 `Spearman's rank correlation coefficient` 进行评估。
 
 ## 结果
-训练1小时（4个epoch），尚未完全拟合的情况下效果：
+训练1小时（4个epoch），尚未完全拟合的情况下效果如下。对照 `Gensim Word2vec` 默认训练结果和 [`GoogleNews-vectors-negative300`](https://code.google.com/archive/p/word2vec/) ：
 
 |              | WordSim353 | RW           | SimLex-999 | Corpus     | embed_dim | vocab_size | Time |
 |--------------|------------|--------------|------------|------------|-----------|------------|------|
