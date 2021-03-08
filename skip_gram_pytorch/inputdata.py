@@ -2,6 +2,7 @@ import os
 import random
 import collections
 import numpy as np
+import torch
 
 from torch.utils.data import Dataset
 
@@ -23,7 +24,6 @@ class DataReader(object):
         self.train_data = self.subsampling(self.data_encoded)
         self.init_negtives_table()
 
-
     def read_data(self, filename):
         with open(filename) as f:
             data = f.read().split()
@@ -40,7 +40,9 @@ class DataReader(object):
 
         self.word_count = np.array(list(counter.values()), dtype=np.float32)
         self.word_frequency = self.word_count / np.sum(self.word_count)
-        self.data_encoded = [self.word2id.get(word, self.word2id["<unk>"]) for word in words]
+        self.data_encoded = [
+            self.word2id.get(word, self.word2id["<unk>"]) for word in words
+        ]
 
     def save_vocab(self):
         with open(os.path.join(self.save_path, "vocab.txt"), "w") as f:
@@ -51,6 +53,7 @@ class DataReader(object):
     def init_negtives_table(self):
         pow_frequency = self.word_frequency ** 0.75
         ratio = pow_frequency / np.sum(pow_frequency)
+
         count = np.round(ratio * self.NEGATIVE_TABLE_SIZE)
         for wid, c in enumerate(count):
             self.negatives += [wid] * int(c)
@@ -97,36 +100,27 @@ class DataReader(object):
         )
         return np.array(pos_u), np.array(pos_v), neg_v
 
-    def get_negatives(self, size):
-        negs = self.negatives[self.negpos : self.negpos + size]
-        self.negpos = (self.negpos + size) % len(self.negatives)
-        if len(negs) != size:
-            return np.concatenate((negs, self.negatives[0 : self.negpos]))
-        # check equality with target
-        # for i in range(len(negs)):
-        #     if negs[i] == target:
-        #         negs[i] = self.negatives[self.negpos]
-        #         self.negpos = (self.negpos + 1) % len(self.negatives)
-        return negs
-
 
 class Word2vecDataset(Dataset):
-    def __init__(self, data, window_size, neg_count=10):
+    def __init__(self, data, window_size, neg_sample_num=10):
         self.data = data
+        self.dataset = np.array(self.data.train_data)
         self.window_size = window_size
-        self.neg_count = neg_count  # The paper says that selecting 5-20 words works well for smaller datasets, and you can get away with only 2-5 words for large datasets.
+        self.neg_sample_num = neg_sample_num  # The paper says that selecting 5-20 words works well for smaller datasets, and you can get away with only 2-5 words for large datasets.
+        self.data_len = len(self.dataset) - self.window_size * 2 - 1
 
     def __len__(self):
-        return len(self.data.train_data)
+        return self.data_len
 
     def __getitem__(self, idx):
-        pos_u = np.array(self.data[idx])
-
         C = self.window_size
-        pos_v_idx = list(range(max(idx - C, 0), idx)) + list(
-            range(idx + 1, min(idx + C + 1, len(self.data) - 1))
+        pos_u = self.dataset[idx + C]  # (1)
+        pos_v_idx = list(range(idx, idx + C)) + list(
+            range(idx + C + 1, idx + C * 2 + 1)
         )
-        pos_v = np.array(self.data[pos_v_idx])
-        neg_v = self.data.get_negatives(2 * self.window_size * self.neg_count)
+        pos_v = self.dataset[pos_v_idx]  # (window_size * 2)
+        # (window_size * 2 * neg_sample_num)
+        neg_v = np.random.choice(
+            self.data.negatives, size=2 * self.window_size * self.neg_sample_num
+        )
         return pos_u, pos_v, neg_v
-        # neg_v = np.random.choice(self.data.negatives, size=2*self.window_size*self.neg_count)
