@@ -1,6 +1,8 @@
 # SGNS-PyTorch
 SkipGram NegativeSampling implemented in PyTorch.
 
+## Usage
+See [test.ipynb](https://github.com/ZubinGou/SGNS-PyTorch/blob/main/test.ipynb)
 
 ## Paper
 1. [Efficient Estimation of Word Representations in Vector Space](http://arxiv.org/pdf/1301.3781.pdf) (original word2vec paper)
@@ -58,8 +60,8 @@ $$
 |              | WordSim353 | RW           | SimLex-999 | Corpus     | embed_dim | vocab_size | Time |
 |--------------|------------|--------------|------------|------------|-----------|------------|------|
 | Gensim       | 0.624      | 0.320        | 0.250      | text8      | 100       | 71290      | 1min |
-| SGNS-PyTorch | 0.654      | 0.339        | 0.267      | text8      | 100       | 50000      | 1h   |
-| GoogleNews   | 0.659      | 0.553        | 0.436      | GoogleNews | 300       | 3000000    | -    |
+| SGNS-PyTorch | **0.661**      | 0.343        | 0.265      | text8      | 100       | 50000      | 1h   |
+| GoogleNews   | 0.659      | **0.553**        | **0.436**      | GoogleNews | 300       | 3000000    | -    |
 
 ## References
 - https://github.com/Andras7/word2vec-pytorch

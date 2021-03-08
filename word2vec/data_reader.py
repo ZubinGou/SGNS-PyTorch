@@ -10,14 +10,13 @@ data_index = 0
 class DataReader(object):
     NEGATIVE_TABLE_SIZE = 1e8
 
-    def __init__(self, datafile, vocabulary_size):
-        self.text_size = vocabulary_size
+    def __init__(self, datafile, vocab_size):
+        self.vocab_size = vocab_size
         self.save_path = "tmp"
         self.negatives = []
-        self.negpos = 0  # used for negtive sampling
 
         self.text = self.read_data(datafile)
-        self.build_dataset(self.text, self.text_size)
+        self.build_dataset(self.text, self.vocab_size)
         self.save_vocab()
         self.train_data = self.subsampling(self.data_encoded)
         self.init_negtives_table()
@@ -29,8 +28,8 @@ class DataReader(object):
             data = [x.lower() for x in data]
         return data
 
-    def build_dataset(self, words, n_words):
-        counter = dict(collections.Counter(words).most_common(n_words - 1))
+    def build_dataset(self, words, vocab_size):
+        counter = dict(collections.Counter(words).most_common(vocab_size - 1))
         counter["<unk>"] = len(words) - np.sum(list(counter.values()))
 
         self.id2word = [word for word in counter.keys()]
@@ -43,6 +42,8 @@ class DataReader(object):
         ]
 
     def save_vocab(self):
+        if not os.path.exists(self.save_path):
+            os.mkdir(self.save_path)
         with open(os.path.join(self.save_path, "vocab.txt"), "w") as f:
             for i in range(len(self.word_count)):
                 vocab_word = self.id2word[i]

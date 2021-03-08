@@ -7,7 +7,7 @@ __pycache__/
 dataset/
 *.vec
 tmp/
-
+.DS_Store
 .vscode
 
 # C extensions

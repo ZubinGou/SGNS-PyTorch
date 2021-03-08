@@ -1,9 +1,5 @@
 from gensim.test.utils import datapath
-from gensim import utils
-from gensim.models import Word2Vec, KeyedVectors
-import gensim.downloader as api
-import pprint
-import tqdm
+from gensim.models import KeyedVectors
 
 def evaluate_wordsim(wordvec):
     p_ws353 = wordvec.evaluate_word_pairs(datapath('wordsim353.tsv'))[1][0]
@@ -15,6 +11,6 @@ def evaluate_wordsim(wordvec):
 
 wv = KeyedVectors.load_word2vec_format("sgns.vec", binary=False)
 # wv = KeyedVectors.load_word2vec_format("tmp/epoch2.batch200000.vec", binary=False)
-vocab = list(wv.vocab.keys())
-print("Loaded vocab size %i" % len(vocab))
+
+print("Loaded vocab size %i" % len((wv.vocab)))
 evaluate_wordsim(wv)
