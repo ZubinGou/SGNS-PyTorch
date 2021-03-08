@@ -58,11 +58,8 @@ $$
 |              | WordSim353 | RW           | SimLex-999 | Corpus     | embed_dim | vocab_size | Time |
 |--------------|------------|--------------|------------|------------|-----------|------------|------|
 | Gensim       | 0.624      | 0.320        | 0.250      | text8      | 100       | 71290      | 1min |
-| SGNS-PyTorch | 0.654      | 0.339(0.414) | 0.267      | text8      | 100       | 50000      | 1h   |
+| SGNS-PyTorch | 0.654      | 0.339        | 0.267      | text8      | 100       | 50000      | 1h   |
 | GoogleNews   | 0.659      | 0.553        | 0.436      | GoogleNews | 300       | 3000000    | -    |
-
-
-*注: `RW` 列括号内为只计算词典词的结果*
 
 ## References
 - https://github.com/Andras7/word2vec-pytorch
