@@ -41,7 +41,7 @@ P_n(w_i)=f(w_i)^{3 / 4} / Z
 $$
 
 ## 训练
-在 `text8` 语料上训练，默认采用词向量维数为100，词典大小为50000。
+在 `text8` 语料上训练，默认采用词向量维数为100，词典大小为50000，window_size为5，负采样数为10。
 
 ## 评估
 1. 基于词向量的语言学特性
@@ -50,17 +50,20 @@ $$
 2. Task-specific
     - 对具体任务的性能提升
 
-我们基于词相似，在 `WordSim-353`、`Stanford Rare Word (RW)` 和 `SimLex-999` 上进行评估
+这里基于词相似，在 `WordSim-353`、`Stanford Rare Word (RW)` 和 `SimLex-999` 上利用 `Spearman's rank correlation coefficient` 进行评估。
 
 ## 结果
+训练1小时（4个epoch），尚未完全拟合的情况下效果：
 
-## Reference
-- https://github.com/theeluwin/pytorch-sgns
-- https://github.com/fanglanting/skip-gram-pytorch
+|              | WordSim353 | RW           | SimLex-999 | Corpus     | embed_dim | vocab_size | Time |
+|--------------|------------|--------------|------------|------------|-----------|------------|------|
+| Gensim       | 0.624      | 0.320        | 0.250      | text8      | 100       | 71290      | 1min |
+| SGNS-PyTorch | 0.654      | 0.339(0.414) | 0.267      | text8      | 100       | 50000      | 1h   |
+| GoogleNews   | 0.659      | 0.553        | 0.436      | GoogleNews | 300       | 3000000    | -    |
+
+
+*注: `RW` 列括号内为只计算词典词的结果*
+
+## References
 - https://github.com/Andras7/word2vec-pytorch
-- https://www.kaggle.com/karthur10/skip-gram-implementation-with-pytorch-step-by-step
-
-## TODO
-- One Billion Word Benchmark
-- Train and test
-- <unk>
+- https://github.com/fanglanting/skip-gram-pytorch
