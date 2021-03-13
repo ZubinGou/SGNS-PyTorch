@@ -4,6 +4,10 @@ SkipGram NegativeSampling implemented in PyTorch.
 ## Usage
 See [test.ipynb](https://github.com/ZubinGou/SGNS-PyTorch/blob/main/test.ipynb)
 
+### Requirements
+- Python 3
+- PyTorch 1.x 
+
 ## Paper
 1. [Efficient Estimation of Word Representations in Vector Space](http://arxiv.org/pdf/1301.3781.pdf) (original word2vec paper)
 2. [Distributed Representations of Words and Phrases and their Compositionality](http://papers.nips.cc/paper/5021-distributed-representations-of-words-and-phrases-and-their-compositionality.pdf) (negative sampling paper)
